@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { getAdminPassword, setAdminPassword, clearAllManhwas } from '../utils/storage';
 import { processImageFile, processChapterFiles } from '../utils/imageUpload';
+import { uploadImageToSupabase } from '../lib/supabase';
 
 export function AdminDashboard({ 
   manhwas, 
@@ -65,8 +66,10 @@ export function AdminDashboard({
     try {
       setIsProcessingCover(true);
       const dataUrl = await processImageFile(file, 1200, 1600, 0.88);
-      setFormData(prev => ({ ...prev, cover: dataUrl }));
-      showFeedback(isArabic ? 'تم رفع صورة الغلاف بنجاح' : 'Cover uploaded');
+      // Upload to Supabase Storage if configured to get permanent CDN URL
+      const cdnUrl = await uploadImageToSupabase(dataUrl, 'covers/cover');
+      setFormData(prev => ({ ...prev, cover: cdnUrl || dataUrl }));
+      showFeedback(isArabic ? 'تم رفع وحفظ صورة الغلاف بنجاح' : 'Cover uploaded');
     } catch (err) {
       alert(isArabic ? 'حدث خطأ أثناء قراءة ملف الصورة' : 'Error reading image file');
     } finally {
@@ -80,8 +83,9 @@ export function AdminDashboard({
     try {
       setIsProcessingBanner(true);
       const dataUrl = await processImageFile(file, 1920, 1080, 0.85);
-      setFormData(prev => ({ ...prev, banner: dataUrl }));
-      showFeedback(isArabic ? 'تم رفع صورة البانر بنجاح' : 'Banner uploaded');
+      const cdnUrl = await uploadImageToSupabase(dataUrl, 'banners/banner');
+      setFormData(prev => ({ ...prev, banner: cdnUrl || dataUrl }));
+      showFeedback(isArabic ? 'تم رفع وحفظ صورة البانر بنجاح' : 'Banner uploaded');
     } catch (err) {
       alert(isArabic ? 'حدث خطأ أثناء قراءة ملف الصورة' : 'Error reading image file');
     } finally {
@@ -97,8 +101,17 @@ export function AdminDashboard({
       const pages = await processChapterFiles(files, (current, total) => {
         setChapterUploadProgress({ current, total });
       });
-      setUploadedChapterPages(pages);
-      showFeedback(isArabic ? `تم رفع ${pages.length} صفحة للفصل بنجاح` : `Uploaded ${pages.length} pages`);
+
+      // Upload pages to Supabase Storage if configured
+      const finalPages = [];
+      for (let i = 0; i < pages.length; i++) {
+        setChapterUploadProgress({ current: i + 1, total: pages.length });
+        const cdnUrl = await uploadImageToSupabase(pages[i], `chapters/page-${i + 1}`);
+        finalPages.push(cdnUrl || pages[i]);
+      }
+
+      setUploadedChapterPages(finalPages);
+      showFeedback(isArabic ? `تم رفع ${finalPages.length} صفحة للفصل بنجاح` : `Uploaded ${finalPages.length} pages`);
     } catch (err) {
       alert(isArabic ? 'حدث خطأ أثناء رفع صفحات الفصل' : 'Error uploading pages');
     } finally {
