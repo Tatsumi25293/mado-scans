@@ -101,6 +101,7 @@ export function HeroSuggestions({
                       alt={manhwa.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out brightness-[0.88]"
                       loading="lazy"
+                      decoding="async"
                     />
 
                     {/* Dark Vignette Gradient */}

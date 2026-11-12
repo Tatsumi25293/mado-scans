@@ -11,6 +11,11 @@ const STORAGE_KEYS = {
 // Default Admin Password
 export const DEFAULT_ADMIN_PASSWORD = 'mado';
 
+// Cache configuration to minimize network requests and bandwidth consumption
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+let lastFetchTimestamp = 0;
+let inMemoryCache = null;
+
 export const getStoredManhwas = () => {
   try {
     const data = localStorage.getItem(STORAGE_KEYS.MANHWAS);
@@ -24,8 +29,48 @@ export const getStoredManhwas = () => {
   }
 };
 
-export const loadManhwasFromDB = async () => {
-  // If Supabase is connected, fetch live data from Supabase
+export const fetchChapterPages = async (chapterId) => {
+  if (!chapterId) return [];
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('chapters')
+        .select('pages')
+        .eq('id', chapterId)
+        .single();
+
+      if (!error && data?.pages && Array.isArray(data.pages)) {
+        return data.pages;
+      }
+    } catch (err) {
+      console.warn('Error fetching chapter pages from Supabase:', err);
+    }
+  }
+  return [];
+};
+
+export const loadManhwasFromDB = async (forceRefresh = false) => {
+  const now = Date.now();
+
+  // 1. If we have fresh in-memory cache, return it with 0 network calls
+  if (!forceRefresh && inMemoryCache && (now - lastFetchTimestamp < CACHE_TTL_MS)) {
+    return inMemoryCache;
+  }
+
+  // 2. If fresh in IndexedDB, return it with 0 network calls
+  if (!forceRefresh) {
+    try {
+      const cached = await getFromIDB('mado_manhwas');
+      const cachedTime = await getFromIDB('mado_manhwas_time');
+      if (Array.isArray(cached) && cachedTime && (now - cachedTime < CACHE_TTL_MS)) {
+        inMemoryCache = cached;
+        lastFetchTimestamp = cachedTime;
+        return cached;
+      }
+    } catch (_) {}
+  }
+
+  // 3. If Supabase is connected, fetch lightweight metadata (excluding massive pages array)
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data: manhwaRows, error: mError } = await supabase
@@ -34,9 +79,10 @@ export const loadManhwasFromDB = async () => {
         .order('created_at', { ascending: false });
 
       if (!mError && Array.isArray(manhwaRows)) {
+        // Only select chapter metadata, not all page images, to save bandwidth
         const { data: chapterRows } = await supabase
           .from('chapters')
-          .select('*')
+          .select('id, manhwa_id, number, title, date, views, is_locked')
           .order('number', { ascending: false });
 
         const mapped = manhwaRows.map(m => {
@@ -64,13 +110,16 @@ export const loadManhwasFromDB = async () => {
               date: ch.date,
               views: ch.views,
               isLocked: ch.is_locked,
-              pages: ch.pages || []
+              pages: [] // Loaded lazily on demand when chapter is opened
             }))
           };
         });
 
-        // Cache in IndexedDB for instant offline loads
+        // Cache in memory and IndexedDB
+        inMemoryCache = mapped;
+        lastFetchTimestamp = now;
         setInIDB('mado_manhwas', mapped);
+        setInIDB('mado_manhwas_time', now);
         return mapped;
       }
     } catch (err) {
@@ -82,6 +131,7 @@ export const loadManhwasFromDB = async () => {
   try {
     const fromIDB = await getFromIDB('mado_manhwas');
     if (Array.isArray(fromIDB)) {
+      inMemoryCache = fromIDB;
       return fromIDB;
     }
   } catch (_) {}
@@ -89,8 +139,11 @@ export const loadManhwasFromDB = async () => {
 };
 
 export const saveStoredManhwas = async (manhwas) => {
-  // Save to IndexedDB and localStorage
+  // Invalidate cache so fresh changes are visible immediately
+  inMemoryCache = manhwas;
+  lastFetchTimestamp = Date.now();
   setInIDB('mado_manhwas', manhwas);
+  setInIDB('mado_manhwas_time', lastFetchTimestamp);
 
   try {
     localStorage.setItem(STORAGE_KEYS.MANHWAS, JSON.stringify(manhwas));
@@ -120,16 +173,20 @@ export const saveStoredManhwas = async (manhwas) => {
 
         if (Array.isArray(m.chapters)) {
           for (const ch of m.chapters) {
-            await supabase.from('chapters').upsert({
+            // Only upsert pages if provided
+            const chapterPayload = {
               id: ch.id,
               manhwa_id: m.id,
               number: ch.number,
               title: ch.title || `فصل ${ch.number}`,
               date: ch.date || 'الآن',
               views: ch.views || '1K',
-              is_locked: ch.isLocked || false,
-              pages: ch.pages || []
-            });
+              is_locked: ch.isLocked || false
+            };
+            if (ch.pages && ch.pages.length > 0) {
+              chapterPayload.pages = ch.pages;
+            }
+            await supabase.from('chapters').upsert(chapterPayload);
           }
         }
       }

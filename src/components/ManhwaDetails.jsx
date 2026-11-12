@@ -60,6 +60,7 @@ export function ManhwaDetails({
             src={manhwa.banner || manhwa.cover}
             alt={manhwa.title}
             className="w-full h-full object-cover object-center brightness-[0.82]"
+            decoding="async"
           />
 
           {/* Deep Cinematic Vignette Gradients */}
@@ -219,6 +220,8 @@ export function ManhwaDetails({
                     src={ch.pages?.[0] || manhwa.banner || manhwa.cover}
                     alt={ch.title}
                     className="w-full h-full object-cover brightness-[0.7]"
+                    loading="lazy"
+                    decoding="async"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
@@ -328,6 +331,7 @@ export function ManhwaDetails({
               src={manhwa.banner || manhwa.cover}
               alt={manhwa.title}
               className="w-full h-full object-cover object-left-top lg:object-center brightness-[0.78] contrast-[1.05]"
+              decoding="async"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-[#07080b]/95 via-[#07080b]/80 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-t from-[#07080b] via-[#07080b]/40 to-black/30" />
@@ -494,6 +498,8 @@ export function ManhwaDetails({
                       src={ch.pages?.[0] || manhwa.banner || manhwa.cover}
                       alt={ch.title}
                       className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 brightness-[0.7]"
+                      loading="lazy"
+                      decoding="async"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
 

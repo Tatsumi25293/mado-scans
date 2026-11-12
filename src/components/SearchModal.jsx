@@ -62,6 +62,8 @@ export function SearchModal({ isOpen, onClose, manhwas, onSelectManhwa, lang }) 
                 src={m.cover}
                 alt={m.title}
                 className="w-10 h-14 rounded-xl object-cover flex-shrink-0 border border-white/10"
+                loading="lazy"
+                decoding="async"
               />
               <div className="flex-1 min-w-0">
                 <h4 className="text-xs font-bold text-white truncate">

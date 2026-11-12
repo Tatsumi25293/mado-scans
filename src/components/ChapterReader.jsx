@@ -1,15 +1,55 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Maximize2, Minimize2, Loader2 } from 'lucide-react';
+import { fetchChapterPages } from '../utils/storage';
 
 export function ChapterReader({ manhwa, chapter, onBack, onSelectChapter, lang }) {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [pages, setPages] = useState(() => (chapter.pages && chapter.pages.length > 0 ? chapter.pages : []));
+  const [isLoadingPages, setIsLoadingPages] = useState(() => !(chapter.pages && chapter.pages.length > 0));
   const isArabic = lang === 'ar';
 
   const chapters = manhwa.chapters || [];
   const currentIndex = chapters.findIndex(c => c.id === chapter.id || c.number === chapter.number);
   const prevChapter = chapters[currentIndex + 1];
   const nextChapter = chapters[currentIndex - 1];
+
+  // Lazy-fetch chapter pages if not already in memory
+  useEffect(() => {
+    let isCancelled = false;
+
+    if (chapter.pages && chapter.pages.length > 0) {
+      setPages(chapter.pages);
+      setIsLoadingPages(false);
+      return;
+    }
+
+    setIsLoadingPages(true);
+    fetchChapterPages(chapter.id).then((fetched) => {
+      if (!isCancelled) {
+        if (fetched && fetched.length > 0) {
+          setPages(fetched);
+          chapter.pages = fetched; // Cache in memory on the chapter object
+        } else {
+          // Fallback if chapter has no pages recorded
+          setPages([
+            manhwa.cover,
+            manhwa.banner || manhwa.cover
+          ]);
+        }
+        setIsLoadingPages(false);
+      }
+    }).catch(() => {
+      if (!isCancelled) {
+        setPages([manhwa.cover]);
+        setIsLoadingPages(false);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [chapter.id]);
 
   // Track scroll percentage
   useEffect(() => {
@@ -55,12 +95,6 @@ export function ChapterReader({ manhwa, chapter, onBack, onSelectChapter, lang }
       }
     }
   };
-
-  const pages = chapter.pages && chapter.pages.length > 0 ? chapter.pages : [
-    manhwa.cover,
-    manhwa.banner || manhwa.cover,
-    "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=900&auto=format&fit=crop&q=80"
-  ];
 
   return (
     <div className="relative min-h-screen bg-[#07080b] text-white">
@@ -108,16 +142,31 @@ export function ChapterReader({ manhwa, chapter, onBack, onSelectChapter, lang }
 
       {/* Comic Webtoon Pages - Optimal Reading Width on PC and Full width on Mobile */}
       <main className="max-w-2xl mx-auto pt-18 pb-28 flex flex-col items-center">
-        {pages.map((url, idx) => (
-          <div key={idx} className="w-full relative bg-black shadow-2xl">
-            <img
-              src={url}
-              alt={`Page ${idx + 1}`}
-              className="w-full h-auto block select-none pointer-events-none"
-              loading="lazy"
-            />
+        {isLoadingPages ? (
+          <div className="py-32 flex flex-col items-center justify-center gap-4 text-center px-4">
+            <Loader2 className="w-9 h-9 text-[#e64626] animate-spin" />
+            <p className="text-sm font-semibold text-zinc-200">
+              {isArabic ? 'جاري تحميل صفحات الفصل...' : 'Loading chapter pages...'}
+            </p>
+            <p className="text-xs text-zinc-500 max-w-xs">
+              {isArabic 
+                ? 'يتم جلب الصور مباشرة من سيرفرات التخزين السريع بأقل استهلاك للبيانات' 
+                : 'Streaming images directly with lazy-load optimization'}
+            </p>
           </div>
-        ))}
+        ) : (
+          pages.map((url, idx) => (
+            <div key={idx} className="w-full relative bg-black shadow-2xl min-h-[300px] flex items-center justify-center">
+              <img
+                src={url}
+                alt={`Page ${idx + 1}`}
+                className="w-full h-auto block select-none pointer-events-none"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+          ))
+        )}
 
         {/* End of chapter banner */}
         <div className="w-full max-w-lg px-6 py-10 mt-6 text-center rounded-3xl apple-glass mx-4">

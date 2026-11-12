@@ -42,6 +42,8 @@ export function LibraryView({ manhwas, bookmarks, onSelectManhwa, onToggleBookma
                 src={manhwa.cover}
                 alt={manhwa.title}
                 className="w-16 h-20 rounded-xl object-cover flex-shrink-0 border border-white/10"
+                loading="lazy"
+                decoding="async"
               />
               <div className="flex-1 min-w-0 pr-1">
                 <h4 className="text-sm font-bold text-white truncate">

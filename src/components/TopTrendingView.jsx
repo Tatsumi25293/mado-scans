@@ -52,6 +52,8 @@ export function TopTrendingView({ manhwas, onSelectManhwa, onBack, lang }) {
                   src={manhwa.cover}
                   alt={manhwa.title}
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                 
